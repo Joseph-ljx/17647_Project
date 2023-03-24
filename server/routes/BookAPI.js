@@ -6,6 +6,7 @@ const express = require("express");
 const router = express.Router();
 const con = require("../dbCon");
 const bodyParser = require("body-parser");
+const validator = require("validator");
 
 // Make sure that each router is using a middleware.
 // The middleware enable the usage of json define.
@@ -17,7 +18,7 @@ router.use(bodyParser.urlencoded({ extended: false }));
 // Regex for validating that price must be
 // 1. a valid number
 // 2. With at most 2 decimal places.
-var regex_1 = /^\d+(\.\d{2,2})?$/;
+var regex_1 = /^\d+\.\d{2}$/;
 
 // Regex for validating that quantity should not have decimal.
 var regex_2 = /^\d+$/;
@@ -46,7 +47,7 @@ router.get(["/isbn/:isbn", "/:isbn"], async function (req, res) {
       let existNum = Object.keys(result).length;
 
       // Book Found
-      if (existNum > 0) {
+      if (result && existNum > 0) {
         // Stringify the result value -> string
         console.log(`Book found: ${JSON.stringify(result, null, 4)}`);
 
@@ -54,12 +55,12 @@ router.get(["/isbn/:isbn", "/:isbn"], async function (req, res) {
         res.status(200).json(result);
         return;
       } else {
-        res.status(404).json("ISBN not found");
+        res.status(404).json({ message: "No such ISBN" });
         return;
       }
     });
   } catch (e) {
-    res.sendStatus(400);
+    res.sendStatus(404);
   }
 });
 
@@ -68,25 +69,25 @@ router.get(["/isbn/:isbn", "/:isbn"], async function (req, res) {
  *
  * Description: return all the books in the database
  */
-router.get("/", async function (req, res) {
-  console.log("GET /api/books/ - Retrieve all books");
+// router.get("/", async function (req, res) {
+//   console.log("GET /api/books/ - Retrieve all books");
 
-  try {
-    // Generate SQL and run the script
-    var sql = "SELECT * FROM Book";
-    con.query(sql, function (err, result) {
-      if (err) {
-        throw err;
-      }
-      // Stringify the result value -> string (convert by JSON.stringify)
-      console.log(`All books" + ${JSON.stringify(result, null, 4)}`);
-      // Return 200, string -> json response
-      res.status(200).json(result);
-    });
-  } catch (e) {
-    res.sendStatus(400);
-  }
-});
+//   try {
+//     // Generate SQL and run the script
+//     var sql = "SELECT * FROM Book";
+//     con.query(sql, function (err, result) {
+//       if (err) {
+//         throw err;
+//       }
+//       // Stringify the result value -> string (convert by JSON.stringify)
+//       console.log(`All books" + ${JSON.stringify(result, null, 4)}`);
+//       // Return 200, string -> json response
+//       res.status(200).json(result);
+//     });
+//   } catch (e) {
+//     res.sendStatus(404);
+//   }
+// });
 
 /**
  * Add Book end point:
@@ -106,13 +107,13 @@ router.post("/", async function (req, res) {
     // All fields in the request body are mandatory
     // Check number validation
     if (
-      req.body.ISBN == undefined ||
-      req.body.title == undefined ||
-      req.body.Author == undefined ||
-      req.body.description == undefined ||
-      req.body.genre == undefined ||
-      req.body.price == undefined ||
-      req.body.quantity == undefined ||
+      !req.body ||
+      !req.body.title ||
+      !req.body.Author ||
+      !req.body.description ||
+      !req.body.genre ||
+      !req.body.price ||
+      !req.body.quantity ||
       !regex_1.test(req.body.price) ||
       !regex_2.test(req.body.quantity)
     ) {
@@ -128,7 +129,11 @@ router.post("/", async function (req, res) {
     var sql_1 = `SELECT * FROM Book WHERE ISBN = '${req.body.ISBN}'`;
     con.query(sql_1, function (err, result) {
       if (err) {
-        console.log("Error: " + err.message);
+        if (err.code === "ER_DUP_ENTRY") {
+          res.status(422).send({ message: "This ISBN already exists in the system." });
+        } else {
+          throw err;
+        }
       }
       // accessing the Result = [RawDataPacket]
       // Using result[0], result[1]...
@@ -185,13 +190,13 @@ router.put("/:isbn", async function (req, res) {
     // All fields in the request body are mandatory
     // Check number validation
     if (
-      req.body.ISBN == undefined ||
-      req.body.title == undefined ||
-      req.body.Author == undefined ||
-      req.body.description == undefined ||
-      req.body.genre == undefined ||
-      req.body.price == undefined ||
-      req.body.quantity == undefined ||
+      !req.body.ISBN ||
+      !req.body.title ||
+      !req.body.Author ||
+      !req.body.description ||
+      !req.body.genre ||
+      !req.body.price ||
+      !req.body.quantity ||
       !regex_1.test(req.body.price) ||
       !regex_2.test(req.body.quantity)
     ) {

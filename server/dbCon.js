@@ -3,8 +3,9 @@ const mysql = require("mysql");
 
 // Database Connection
 let con = mysql.createConnection({
-  host: "mydatabase-instance-1.cym2r8bxxstg.us-east-1.rds.amazonaws.com",
-  user: "ljx02263",
+  //host: "mydatabase-instance-1.cym2r8bxxstg.us-east-1.rds.amazonaws.com",
+  host: "localhost",
+  user: "root",
   port: 3306,
   password: "qq1298508511",
   database: "db_app",
