@@ -3,7 +3,7 @@ const mysql = require("mysql");
 
 // Database Connection
 let con = mysql.createConnection({
-  host: "mydatabase-instance-1.cym2r8bxxstg.us-east-1.rds.amazonaws.com",
+  host: "mystack-databasereplicainstance-py6xosah4s0k.cym2r8bxxstg.us-east-1.rds.amazonaws.com",
   user: "ljx02263",
   port: 3306,
   password: "qq1298508511",
