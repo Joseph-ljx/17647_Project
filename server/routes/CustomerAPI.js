@@ -6,6 +6,7 @@ const express = require("express");
 const router = express.Router();
 const con = require("../dbCon");
 const bodyParser = require("body-parser");
+const validator = require("validator");
 
 // Make sure that each router is using a middleware.
 // The middleware enable the usage of json define.
@@ -13,9 +14,6 @@ const bodyParser = require("body-parser");
 router.use(express.json());
 router.use(bodyParser.json());
 router.use(bodyParser.urlencoded({ extended: false }));
-
-// Regex for validating email format
-var regex_1 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // State string for validating an U.S. state
 var stateString =
@@ -39,14 +37,15 @@ router.post("/", async function (req, res) {
   try {
     // Address 2 is optional, others are mandatory
     if (
-      req.body.userId == undefined ||
-      req.body.name == undefined ||
-      req.body.phone == undefined ||
-      req.body.address == undefined ||
-      req.body.city == undefined ||
-      req.body.state == undefined ||
-      req.body.zipcode == undefined ||
-      !regex_1.test(req.body.userId) ||
+      !req.body.userId ||
+      !req.body.name ||
+      !req.body.phone ||
+      !req.body.address ||
+      !req.body.city ||
+      !req.body.state ||
+      !req.body.zipcode ||
+      !validator.isEmail(req.body.userId) ||
+      req.body.state.length != 2 ||
       stateString.indexOf(req.body.state) <= 0
     ) {
       res.status(400);
@@ -61,7 +60,13 @@ router.post("/", async function (req, res) {
     var sql_1 = `SELECT * FROM Customer WHERE userId = '${req.body.userId}'`;
     con.query(sql_1, function (err, result) {
       if (err) {
-        console.log("Error: " + err.message);
+        if (err.code === "ER_DUP_ENTRY") {
+          res
+            .status(422)
+            .send({ message: "This user ID already exists in the system." });
+        } else {
+          throw err;
+        }
       }
       // accessing the Result = [RawDataPacket]
       // Using result[0], result[1]...
@@ -72,7 +77,7 @@ router.post("/", async function (req, res) {
       let existNum = Object.keys(result).length;
 
       // If ISBN already exist
-      if (existNum > 0) {
+      if (result && existNum > 0) {
         res
           .status(422)
           .json({ message: "This user ID already exists in the system." });
@@ -121,6 +126,12 @@ router.get("/:id", async function (req, res) {
   console.log("GET /api/customers/id - Get a customer by ID");
 
   const id = req.params["id"];
+
+  if (!validator.isNumeric(id)) {
+    res.status(400).send({ message: "invalid id" });
+    return;
+  }
+
   try {
     // Generate SQL and run the script
     var sql = `SELECT * FROM Customer WHERE id = ${id}`;
@@ -135,7 +146,7 @@ router.get("/:id", async function (req, res) {
       let existNum = Object.keys(result).length;
 
       // Customer Found
-      if (existNum > 0) {
+      if (result && existNum > 0) {
         // Stringify the result value -> string
         console.log(`Customer found: ${JSON.stringify(result, null, 4)}`);
 
@@ -169,7 +180,11 @@ router.get("", async function (req, res) {
   console.log("GET /api/customers/uid - Get a customer by user ID");
 
   const userId = req.query.userId;
-  console.log(userId);
+
+  if (!validator.isEmail(userId)) {
+    res.status(400).send("invalid user id");
+    return;
+  }
   try {
     // Generate SQL and run the script
     var sql = `SELECT * FROM Customer WHERE userId = '${userId}'`;
