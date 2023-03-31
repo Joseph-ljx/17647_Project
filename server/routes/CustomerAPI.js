@@ -15,10 +15,6 @@ router.use(express.json());
 router.use(bodyParser.json());
 router.use(bodyParser.urlencoded({ extended: false }));
 
-// State string for validating an U.S. state
-var stateString =
-  "|AL|AK|AS|AZ|AR|CA|CO|CT|DE|DC|FM|FL|GA|GU|HI|ID|IL|IN|IA|KS|KY|LA|ME|MH|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|MP|OH|OK|OR|PW|PA|PR|RI|SC|SD|TN|TX|UT|VT|VI|VA|WA|WV|WI|WY|";
-
 /**
  * Add Customer endpoint:
  *
@@ -34,29 +30,35 @@ router.post("/", async function (req, res) {
   // Generate a unique digit id
   var id = Date.now();
 
-  try {
+  // Get the parameters
+  const {userId, name, phone, address, address2, city, state, zipcode} = req.body;
+
     // Address 2 is optional, others are mandatory
     if (
-      !req.body.userId ||
-      !req.body.name ||
-      !req.body.phone ||
-      !req.body.address ||
-      !req.body.city ||
-      !req.body.state ||
-      !req.body.zipcode ||
-      !validator.isEmail(req.body.userId) ||
-      req.body.state.length != 2 ||
-      stateString.indexOf(req.body.state) <= 0
+      !userId ||
+      !name ||
+      !phone ||
+      !address ||
+      !city ||
+      !state ||
+      !zipcode
     ) {
       res.status(400);
-      res.json("Bad Request! Attribute lost or format unmatched!");
+      res.send({message : "Bad Request! Attribute lost or format unmatched!"});
 
       // Recommend to place a return statement after the res.send call
       // to make your function stop executing further.
       return;
-    }
-
-    // Check whether this user-ID (not ID) already exist
+    } else if (!validator.isEmail(req.body.userId)) {
+      res.status(400);
+      res.send({message : "Not a valid email!"});
+      return;
+    } else if (state.length != 2) {
+      res.status(400);
+      res.send({message : "State is illegal, should be 2 letter long!"});
+      return;
+    } else {
+      // Check whether this user-ID (not ID) already exist
     var sql_1 = `SELECT * FROM Customer WHERE userId = '${req.body.userId}'`;
     con.query(sql_1, function (err, result) {
       if (err) {
@@ -64,6 +66,7 @@ router.post("/", async function (req, res) {
           res
             .status(422)
             .send({ message: "This user ID already exists in the system." });
+            return;
         } else {
           throw err;
         }
@@ -80,19 +83,21 @@ router.post("/", async function (req, res) {
       if (result && existNum > 0) {
         res
           .status(422)
-          .json({ message: "This user ID already exists in the system." });
+          .send({ message: "This user ID already exists in the system." });
         return;
       } else {
         // Insert into Database
         var sql_2 = `INSERT INTO Customer
         (id, userId, name, phone, address, address2, city, state, zipcode)
         VALUES
-        (${id}, '${req.body.userId}', '${req.body.name}', '${req.body.phone}', '${req.body.address}',
-        '${req.body.address2}', '${req.body.city}', '${req.body.state}', '${req.body.zipcode}');
+        (${id}, '${userId}', '${name}', '${phone}', '${address}',
+        '${address2}', '${city}', '${state}', '${zipcode}');
         `;
         con.query(sql_2, function (err) {
           if (err) {
             console.log("Error: " + err.message);
+            res.status(500).send({ message: "Insertion failed." });
+            return;
           }
         });
 
@@ -105,13 +110,10 @@ router.post("/", async function (req, res) {
         // Successfully created.
         // Assign the id for exhibition
         req.body.id = id;
-        res.status(201).json(req.body);
+        res.status(201).send(req.body);
       }
     });
-  } catch (e) {
-    res.status(404);
-    res.json("request failed!");
-  }
+    }
 });
 
 /**
@@ -125,15 +127,13 @@ router.post("/", async function (req, res) {
 router.get("/:id", async function (req, res) {
   console.log("GET /api/customers/id - Get a customer by ID");
 
-  const id = req.params["id"];
+  const id = req.params.id;
 
-  if (!validator.isNumeric(id)) {
-    res.status(400).send({ message: "invalid id" });
-    return;
-  }
-
-  try {
-    // Generate SQL and run the script
+    if (!validator.isNumeric(id)) {
+      res.status(400).send({ message: "invalid id" });
+      return;
+    } else {
+      // Generate SQL and run the script
     var sql = `SELECT * FROM Customer WHERE id = ${id}`;
     con.query(sql, function (err, result) {
       if (err) {
@@ -151,17 +151,14 @@ router.get("/:id", async function (req, res) {
         console.log(`Customer found: ${JSON.stringify(result, null, 4)}`);
 
         // Return 200, string -> json response
-        res.status(200).json(result);
+        res.status(200).send(result[0]);
         return;
       } else {
-        res.status(404).json("ID does not exist in the system");
+        res.status(404).send({message : "ID does not exist in the system"});
         return;
       }
     });
-  } catch (e) {
-    res.status(400);
-    res.json("Illegal, missing, or malformed input");
-  }
+    }
 });
 
 /**
@@ -181,12 +178,11 @@ router.get("", async function (req, res) {
 
   const userId = req.query.userId;
 
-  if (!validator.isEmail(userId)) {
-    res.status(400).send("invalid user id");
-    return;
-  }
-  try {
-    // Generate SQL and run the script
+    if (!validator.isEmail(userId)) {
+      res.status(400).send({message : "invalid user id"});
+      return;
+    } else {
+      // Generate SQL and run the script
     var sql = `SELECT * FROM Customer WHERE userId = '${userId}'`;
     console.log(sql);
     con.query(sql, function (err, result) {
@@ -205,17 +201,14 @@ router.get("", async function (req, res) {
         console.log(`Customer found: ${JSON.stringify(result, null, 4)}`);
 
         // Return 200, string -> json response
-        res.status(200).json(result);
+        res.status(200).send(result[0]);
         return;
       } else {
-        res.status(404).json("User ID does not exist in the system");
+        res.status(404).send({message : "User ID does not exist in the system"});
         return;
       }
     });
-  } catch (e) {
-    res.status(400);
-    res.json("Illegal, missing, or malformed input");
-  }
+    }
 });
 
 module.exports = router;

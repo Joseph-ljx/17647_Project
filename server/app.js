@@ -15,9 +15,9 @@ const customerRouter = require("./routes/CustomerAPI");
 const bookRouter = require("./routes/BookAPI");
 
 // Apply routers
-app.use("/api", indexRouter);
-app.use("/api/customers", customerRouter);
-app.use("/api/books", bookRouter);
+app.use("/", indexRouter);
+app.use("/customers", customerRouter);
+app.use("/books", bookRouter);
 
 // Engine setup for exhibition - Optional
 app.set("views", path.join(__dirname, "../views"));

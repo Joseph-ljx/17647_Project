@@ -6,7 +6,6 @@ const express = require("express");
 const router = express.Router();
 const con = require("../dbCon");
 const bodyParser = require("body-parser");
-const validator = require("validator");
 
 // Make sure that each router is using a middleware.
 // The middleware enable the usage of json define.
@@ -18,10 +17,10 @@ router.use(bodyParser.urlencoded({ extended: false }));
 // Regex for validating that price must be
 // 1. a valid number
 // 2. With at most 2 decimal places.
-var regex_1 = /^\d+\.\d{2}$/;
+const regex_1 = /^\d+\.\d{2}$/;
 
 // Regex for validating that quantity should not have decimal.
-var regex_2 = /^\d+$/;
+const regex_2 = /^\d+$/;
 
 /**
  * Retrieve Book endpoint:
@@ -31,10 +30,9 @@ var regex_2 = /^\d+$/;
  */
 
 router.get(["/isbn/:isbn", "/:isbn"], async function (req, res) {
-  const isbn = req.params["isbn"];
+  const isbn = req.params.isbn || req.params.ISBN;
   console.log(`GET /api/books/isbn - ${isbn}`);
 
-  try {
     // Generate SQL and run the script
     var sql = `SELECT * FROM Book WHERE ISBN = '${isbn}'`;
     con.query(sql, function (err, result) {
@@ -52,16 +50,13 @@ router.get(["/isbn/:isbn", "/:isbn"], async function (req, res) {
         console.log(`Book found: ${JSON.stringify(result, null, 4)}`);
 
         // Return 200, string -> json response
-        res.status(200).json(result);
+        res.status(200).send(result[0]);
         return;
       } else {
-        res.status(404).json({ message: "No such ISBN" });
+        res.status(404).send({ message : "No such ISBN" });
         return;
       }
     });
-  } catch (e) {
-    res.sendStatus(404);
-  }
 });
 
 /**
@@ -103,29 +98,34 @@ router.post("/", async function (req, res) {
   // const bookInfo = JSON.stringify(req.body);
   console.log(req.body); // testing
 
-  try {
+  const { ISBN, title, Author, description, genre, price, quantity } = req.body;
     // All fields in the request body are mandatory
     // Check number validation
     if (
-      !req.body ||
-      !req.body.title ||
-      !req.body.Author ||
-      !req.body.description ||
-      !req.body.genre ||
-      !req.body.price ||
-      !req.body.quantity ||
-      !regex_1.test(req.body.price) ||
-      !regex_2.test(req.body.quantity)
+      !ISBN ||
+      !title ||
+      !Author ||
+      !description ||
+      !genre ||
+      !price ||
+      !quantity
     ) {
       res.status(400);
-      res.json("Bad Request! Attribute lost or format unmatched!");
+      res.send({"message" : "Fields lost!"});
 
       // Recommend to place a return statement after the res.send call
       // to make your function stop executing further.
       return;
-    }
-
-    // Check whether this book already exist
+    } else if (!regex_1.test(req.body.price)) {
+      res.status(400);
+      res.send({message : "price need a number with 2 decimals!"});
+      return;
+    } else if (!regex_2.test(req.body.quantity)) {
+      res.status(400);
+      res.send({message : "quantity must be integer!"});
+      return;
+    } else {
+      // Check whether this book already exist
     var sql_1 = `SELECT * FROM Book WHERE ISBN = '${req.body.ISBN}'`;
     con.query(sql_1, function (err, result) {
       if (err) {
@@ -154,8 +154,8 @@ router.post("/", async function (req, res) {
         var sql_2 = `INSERT INTO Book
         (ISBN, title, author, description, genre, price, quantity)
         VALUES
-        ('${req.body.ISBN}', '${req.body.title}', '${req.body.Author}',
-        '${req.body.description}', '${req.body.genre}', ${req.body.price}, ${req.body.quantity});
+        ('${ISBN}', '${title}', '${Author}',
+        '${description}', '${genre}', ${price}, ${quantity});
         `;
         con.query(sql_2, function (err) {
           if (err) {
@@ -164,13 +164,19 @@ router.post("/", async function (req, res) {
         });
 
         // Successfully created.
-        res.status(201).json(req.body);
+        res.status(201).send({
+                  ISBN,
+                  title,
+                  Author,
+                  description,
+                  genre,
+                  price: parseFloat(price),
+                  quantity
+        });
       }
     });
-  } catch (e) {
-    res.status(400);
-    res.json("Request Failed!");
-  }
+
+    }
 });
 
 /**
@@ -186,30 +192,37 @@ router.put("/:isbn", async function (req, res) {
   // const bookInfo = JSON.stringify(req.body);
   console.log(req.body); // testing
 
+  const { ISBN, title, Author, description, genre, price, quantity } = req.body;
+
   try {
     // All fields in the request body are mandatory
     // Check number validation
     if (
-      !req.body.ISBN ||
-      !req.body.title ||
-      !req.body.Author ||
-      !req.body.description ||
-      !req.body.genre ||
-      !req.body.price ||
-      !req.body.quantity ||
-      !regex_1.test(req.body.price) ||
-      !regex_2.test(req.body.quantity)
+      !ISBN ||
+      !title ||
+      !Author ||
+      !description ||
+      !genre ||
+      !price ||
+      !quantity
     ) {
       res.status(400);
-      res.json("Bad Request! Attribute lost or format unmatched!");
+      res.send({message : "Bad Request! Attribute lost or format unmatched!"});
 
       // Recommend to place a return statement after the res.send call
       // to make your function stop executing further.
       return;
-    }
-
-    // Check whether this book already exist
-    var sql_1 = `SELECT * FROM Book WHERE ISBN = '${req.body.ISBN}'`;
+    }  else if (!regex_1.test(req.body.price)) {
+      res.status(400);
+      res.send({message : "price need a number with 2 decimals!"});
+      return;
+    } else if (!regex_2.test(req.body.quantity)) {
+      res.status(400);
+      res.send({message : "quantity must be integer!"});
+      return;
+    } else {
+      // Check whether this book already exist
+    var sql_1 = `SELECT * FROM Book WHERE ISBN = '${ISBN}'`;
     con.query(sql_1, function (err, result) {
       if (err) {
         console.log("Error: " + err.message);
@@ -223,17 +236,18 @@ router.put("/:isbn", async function (req, res) {
       if (existNum > 0) {
         // Update Specific Row
         var sql_2 = `UPDATE Book
-            SET title = '${req.body.title}',
-            Author = '${req.body.Author}',
-            description = '${req.body.description}',
-            genre = '${req.body.genre}',
-            price = ${req.body.price},
-            quantity = ${req.body.quantity}
-            WHERE ISBN = '${req.body.ISBN}';
+            SET title = '${title}',
+            Author = '${Author}',
+            description = '${description}',
+            genre = '${genre}',
+            price = ${price},
+            quantity = ${quantity}
+            WHERE ISBN = '${ISBN}';
           `;
         con.query(sql_2, function (err) {
           if (err) {
             console.log("Error: " + err.message);
+            res.status(404).json({ message: err.message });
           }
         });
 
@@ -246,6 +260,7 @@ router.put("/:isbn", async function (req, res) {
         return;
       }
     });
+    }
   } catch (e) {
     res.status(400);
     res.json("Request Failed!");
